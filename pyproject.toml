@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "arcade-mcp-server>=1.17.0,<2.0.0",
     "httpx>=0.28.0,<1.0.0",
+    "google-auth>=2.0.0,<3.0.0",
     "pyyaml>=6.0,<7.0",
 ]
 
@@ -16,6 +17,10 @@ dev = [
     "mypy>=1.0.0",
     "ruff>=0.1.0",
     "types-PyYAML>=6.0,<7.0",
+    # Used by tests to mint a throwaway RSA key for the service-account token
+    # provider. google-auth's RSA backend can be the `rsa` package, so this is
+    # not guaranteed transitively — declare it explicitly.
+    "cryptography>=41.0.0",
 ]
 
 # Tell Arcade.dev that this package ships Arcade tools.

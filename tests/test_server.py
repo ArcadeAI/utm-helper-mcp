@@ -6,7 +6,17 @@ import pytest
 from arcade_mcp_server.exceptions import ToolExecutionError
 
 from utm_server import server
-from utm_server.config import DEFAULT_SPEC_SOURCE_URL, SPEC_SOURCE_SECRET, Config
+from utm_server.campaigns import CampaignRegistry
+from utm_server.config import (
+    CAMPAIGN_SA_JSON_SECRET,
+    CAMPAIGN_SHEET_ID_SECRET,
+    CAMPAIGN_SHEET_RANGE_SECRET,
+    DEFAULT_CAMPAIGN_SHEET_RANGE,
+    DEFAULT_SPEC_SOURCE_URL,
+    SPEC_SOURCE_SECRET,
+    Config,
+    SheetConfig,
+)
 from utm_server.sources import SpecSource
 
 
@@ -135,3 +145,91 @@ def test_validate_url_tool_fails_loud_on_bad_spec_source(monkeypatch):
 
 def test_validate_url_is_registered_as_a_tool():
     assert callable(server.validate_url)
+
+
+# --- list_campaigns ---------------------------------------------------------
+
+
+def _campaign_registry(handler) -> CampaignRegistry:
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    config = SheetConfig(sheet_id="sheet123", sheet_range="Campaigns!A:D")
+    return CampaignRegistry(config, token_provider=lambda: "fake-token", client=client)
+
+
+def test_resolve_sheet_config_uses_secrets():
+    context = FakeContext({
+        CAMPAIGN_SHEET_ID_SECRET: "sheet123",
+        CAMPAIGN_SHEET_RANGE_SECRET: "Tab2!A:D",
+    })
+    config = server.resolve_sheet_config(context)
+    assert config == SheetConfig(sheet_id="sheet123", sheet_range="Tab2!A:D")
+
+
+def test_resolve_sheet_config_defaults_range_when_unset():
+    context = FakeContext({CAMPAIGN_SHEET_ID_SECRET: "sheet123"})
+    config = server.resolve_sheet_config(context)
+    assert config.sheet_range == DEFAULT_CAMPAIGN_SHEET_RANGE
+
+
+def test_resolve_sheet_config_fails_loud_without_sheet_id():
+    from utm_server.campaigns import CampaignSheetError
+
+    with pytest.raises(CampaignSheetError) as excinfo:
+        server.resolve_sheet_config(FakeContext({}))
+    assert CAMPAIGN_SHEET_ID_SECRET in str(excinfo.value)
+
+
+def test_list_campaigns_tool_returns_rows(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "range": "Campaigns!A1:D2",
+                "values": [
+                    ["campaign", "description", "added_by", "added_at"],
+                    ["2026-q2_agent-launch", "Q2 launch", "u_1", "2026-04-01"],
+                ],
+            },
+        )
+
+    monkeypatch.setattr(server, "get_registry", lambda cfg, sa: _campaign_registry(handler))
+    context = FakeContext({
+        CAMPAIGN_SHEET_ID_SECRET: "sheet123",
+        CAMPAIGN_SA_JSON_SECRET: "{}",
+    })
+    assert server.list_campaigns(context) == [
+        {
+            "campaign": "2026-q2_agent-launch",
+            "description": "Q2 launch",
+            "added_by": "u_1",
+            "added_at": "2026-04-01",
+        }
+    ]
+
+
+def test_list_campaigns_tool_fails_loud_on_bad_schema(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"range": "Campaigns!A1:D1", "values": [["nope", "wrong", "head", "ers"]]}
+        )
+
+    monkeypatch.setattr(server, "get_registry", lambda cfg, sa: _campaign_registry(handler))
+    context = FakeContext({
+        CAMPAIGN_SHEET_ID_SECRET: "sheet123",
+        CAMPAIGN_SA_JSON_SECRET: "{}",
+    })
+    with pytest.raises(ToolExecutionError) as excinfo:
+        server.list_campaigns(context)
+    assert "admin" in str(excinfo.value)
+
+
+def test_list_campaigns_tool_fails_loud_without_credential():
+    # No service-account secret configured.
+    context = FakeContext({CAMPAIGN_SHEET_ID_SECRET: "sheet123"})
+    with pytest.raises(ToolExecutionError) as excinfo:
+        server.list_campaigns(context)
+    assert CAMPAIGN_SA_JSON_SECRET in str(excinfo.value)
+
+
+def test_list_campaigns_is_registered_as_a_tool():
+    assert callable(server.list_campaigns)
