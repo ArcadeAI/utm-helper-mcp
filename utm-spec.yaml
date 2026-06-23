@@ -1,0 +1,145 @@
+# =============================================================================
+# utm-spec.yaml — the authoritative, machine-readable UTM specification.
+#
+# This file is the single source of truth that every UTM Helper MCP tool reads
+# from (see PRD, issue #1). Tools (build_url, validate_and_normalize,
+# add_campaign, ...) parse THIS file directly — they must never hard-code the
+# rules below. If a rule changes, it changes here, via reviewed PR.
+#
+# -----------------------------------------------------------------------------
+# How to read this file (parser contract)
+# -----------------------------------------------------------------------------
+#  * `version`        — integer schema version. Bump on breaking format changes.
+#  * `normalization`  — the deterministic transform a tool applies to EVERY
+#                       parameter value before validating it.
+#  * `parameters.*`   — one block per UTM parameter. Each block declares:
+#       - store:      where the authoritative value list lives (`git` = this
+#                     file; `sheet` = the campaign registry Google Sheet).
+#       - required:   whether build_url must receive it.
+#       - enum_type:  `closed` (only listed values are valid),
+#                     `open`   (listed values are seeds; others allowed),
+#                     or absent (free-form, governed by `shape`).
+#       - on_unknown: what a tool does when a value is not in `values`
+#                     (`refuse`, `emit_and_nudge`, or `normalize`).
+#       - values:     the enum (for git-stored enum params).
+#       - shape /
+#         shape_regex:the convention for free-form params (content/term).
+#       - template /
+#         template_regex: the structure for utm_campaign.
+#
+#  All regexes are anchored (^...$) and assume the value has ALREADY been
+#  passed through `normalization` below. Match against the normalized value.
+# =============================================================================
+
+version: 1
+
+# -----------------------------------------------------------------------------
+# Global normalization rules.
+#
+# Apply these steps, in order, to every parameter value before validation.
+# This is what makes validate_and_normalize deterministic and idempotent:
+# normalize(normalize(x)) == normalize(x).
+# -----------------------------------------------------------------------------
+normalization:
+  case: lower                 # lowercase the entire value
+  separator: "-"              # the canonical word separator within a value
+  steps:
+    - trim_whitespace         # strip leading/trailing whitespace
+    - to_lowercase            # ASCII lowercase
+    - spaces_to_separator     # collapse runs of whitespace -> single "-"
+    - underscores_to_separator # "_" -> "-" (EXCEPT the structural "_" in
+                              #  utm_campaign; see note on utm_campaign below)
+    - strip_invalid_chars     # drop anything outside [a-z0-9-]
+    - collapse_separators     # collapse runs of "-" into a single "-"
+    - trim_separators         # strip leading/trailing "-"
+  # A fully normalized free-form value must match this:
+  normalized_pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+
+# -----------------------------------------------------------------------------
+# Parameters
+# -----------------------------------------------------------------------------
+parameters:
+
+  utm_source:
+    store: git
+    required: true
+    description: >-
+      The platform or referrer the click originates from (e.g. reddit,
+      linkedin). High-churn-ish but low-stakes: an unknown value is plausibly a
+      genuine new platform, so tools emit the normalized link AND nudge the user
+      to add the value to this file via PR.
+    enum_type: open
+    on_unknown: emit_and_nudge
+    values:
+      - reddit
+      - linkedin
+      - x            # formerly twitter
+      - hackernews
+      - newsletter
+      - youtube
+      - github
+
+  utm_medium:
+    store: git
+    required: true
+    description: >-
+      The marketing channel type. This is the highest-stakes, lowest-churn
+      field: GA4's default channel grouping keys off it. An unknown medium is
+      almost always an agent mistake (e.g. "paid-social" instead of "cpc"), so
+      tools HARD REFUSE unknown values, show the valid set + closest suggestion,
+      and never emit a link. This enum must never move to a writable store.
+    enum_type: closed
+    on_unknown: refuse
+    values:
+      - social       # organic social posts (reddit, linkedin, x, ...)
+      - email        # newsletters, lifecycle/transactional sends
+      - cpc          # paid search & paid social (cost-per-click)
+      - organic      # organic search
+      - referral     # links from other sites / partners
+      - affiliate    # affiliate / partner-attribution links
+
+  utm_campaign:
+    store: sheet
+    required: true
+    description: >-
+      The initiative this link belongs to. Lives in the campaign registry
+      Google Sheet (not this file) because campaigns churn constantly. Tools
+      read the Sheet fresh; add_campaign does a two-phase, dedup-checked write.
+      The NAME must follow the template below regardless of where it is stored.
+    template: "YYYY-qN_kebab-slug"
+    # Structure: <4-digit-year>-q<1..4>_<kebab-slug>
+    # The "_" between the date-quarter prefix and the slug is STRUCTURAL and is
+    # the one underscore that normalization must NOT convert to "-". Everything
+    # after it is a normal kebab-case slug.
+    template_regex: "^[0-9]{4}-q[1-4]_[a-z0-9]+(-[a-z0-9]+)*$"
+    example: "2026-q2_agent-launch"
+
+  utm_content:
+    store: git
+    required: false
+    description: >-
+      Differentiates otherwise-identical links to the same destination
+      (e.g. which CTA, which A/B variant). Free-form but shape-constrained.
+    enum_type: free
+    on_unknown: normalize        # always normalize; never refuse
+    shape: kebab-case
+    shape_regex: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    examples:
+      - header-cta
+      - footer-link
+      - variant-a
+
+  utm_term:
+    store: git
+    required: false
+    paid_only: true              # only meaningful for utm_medium: cpc
+    description: >-
+      Paid-search keyword(s). Optional and used only on paid (cpc) links.
+      Free-form but shape-constrained, same as utm_content.
+    enum_type: free
+    on_unknown: normalize
+    shape: kebab-case
+    shape_regex: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    examples:
+      - mcp-server
+      - ai-agent-tools
