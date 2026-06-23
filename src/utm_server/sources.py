@@ -18,6 +18,7 @@ from typing import Callable
 import httpx
 
 from .config import Config, file_url
+from .spec import SPEC_FILENAME, Spec, SpecParseError, parse_spec
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,20 @@ class SpecSource:
     def get_guidelines(self) -> str:
         """Return the human-readable UTM guide (``GUIDE.md``)."""
         return self.get_text(GUIDE_FILENAME)
+
+    def get_spec(self) -> Spec:
+        """Return the parsed, structured spec (``utm-spec.yaml``).
+
+        Fetches (with the same brief TTL cache as any spec file) and parses the
+        machine-readable spec. A parse failure is surfaced as
+        :class:`SpecSourceError` so callers' existing fail-loud handling catches
+        it alongside fetch failures — never a built-in default.
+        """
+        text = self.get_text(SPEC_FILENAME)
+        try:
+            return parse_spec(text)
+        except SpecParseError as exc:
+            raise SpecSourceError(str(exc)) from exc
 
 
 _sources: dict[str, SpecSource] = {}

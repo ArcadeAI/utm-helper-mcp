@@ -6,6 +6,7 @@ requires-python = ">=3.10"
 dependencies = [
     "arcade-mcp-server>=1.17.0,<2.0.0",
     "httpx>=0.28.0,<1.0.0",
+    "pyyaml>=6.0,<7.0",
 ]
 
 [project.optional-dependencies]
@@ -14,6 +15,7 @@ dev = [
     "pytest>=7.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    "types-PyYAML>=6.0,<7.0",
 ]
 
 # Tell Arcade.dev that this package ships Arcade tools.
@@ -31,8 +33,13 @@ packages = ["src/utm_server"]
 line-length = 100
 target-version = "py310"
 
+# python_version is 3.12 here only so mypy's *parser* accepts the PEP 695 `type`
+# statements in the numpy stubs that arcade-mcp pulls in transitively (a 3.10
+# parser rejects them, and a parse error in a reachable stub can't be suppressed
+# per-module). The runtime floor stays 3.10 — enforced by `requires-python` and
+# ruff's `target-version = "py310"`.
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_unused_configs = true
 disallow_untyped_defs = false
 
