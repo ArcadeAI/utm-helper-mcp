@@ -18,6 +18,24 @@ from dataclasses import dataclass
 #: Name of the Arcade secret holding the raw base URL of the Git spec source.
 SPEC_SOURCE_SECRET = "UTM_SPEC_SOURCE_URL"
 
+#: Arcade secret holding the campaign-registry Google Sheet ID (a pointer).
+CAMPAIGN_SHEET_ID_SECRET = "UTM_CAMPAIGN_SHEET_ID"
+
+#: Arcade secret holding the Sheet's A1 tab/range to read (a pointer). Optional;
+#: falls back to :data:`DEFAULT_CAMPAIGN_SHEET_RANGE` when unset.
+CAMPAIGN_SHEET_RANGE_SECRET = "UTM_CAMPAIGN_SHEET_RANGE"
+
+#: Arcade secret holding the shared **service-account** credential (the full
+#: Google service-account key JSON). This is the server-side credential the tool
+#: uses to read the Sheet — end users need no direct Google/Sheet access.
+CAMPAIGN_SA_JSON_SECRET = "UTM_CAMPAIGN_SA_JSON"
+
+#: Default tab/range when the range secret is unset: the whole ``Campaigns`` tab,
+#: columns A–D (campaign, description, added_by, added_at). A pointer default
+#: only — never silently substitutes a *sheet* (there is no shipped default
+#: registry, so a missing Sheet ID fails loud).
+DEFAULT_CAMPAIGN_SHEET_RANGE = "Campaigns!A:D"
+
 #: The announced first-run / no-config default: the opinionated seed spec that
 #: ships in this repo. Using it logs a warning (see ``sources``) so a
 #: misconfigured deploy is never mistaken for a working one.
@@ -60,6 +78,30 @@ def config_from_url(url: str | None) -> Config:
 def file_url(config: Config, filename: str) -> str:
     """Join the spec source base URL with a spec file name (e.g. ``GUIDE.md``)."""
     return config.spec_source_url + filename.lstrip("/")
+
+
+@dataclass(frozen=True)
+class SheetConfig:
+    """Resolved, pointers-only configuration for the campaign-registry Sheet.
+
+    Attributes:
+        sheet_id: The Google Sheet ID (the long token in the Sheet's URL).
+        sheet_range: The A1 tab/range to read (e.g. ``Campaigns!A:D``).
+    """
+
+    sheet_id: str
+    sheet_range: str
+
+
+def sheet_config_from(sheet_id: str, sheet_range: str | None) -> SheetConfig:
+    """Build :class:`SheetConfig` from the Sheet pointer secrets.
+
+    A blank range falls back to :data:`DEFAULT_CAMPAIGN_SHEET_RANGE`. The Sheet
+    ID has no default — a missing/blank ID is a misconfiguration the caller must
+    surface loudly (there is no shipped default registry to fall back to).
+    """
+    cleaned_range = (sheet_range or "").strip() or DEFAULT_CAMPAIGN_SHEET_RANGE
+    return SheetConfig(sheet_id=sheet_id.strip(), sheet_range=cleaned_range)
 
 
 def _with_trailing_slash(url: str) -> str:
