@@ -104,6 +104,45 @@ def test_get_source_is_cached_per_url():
     assert other is not first
 
 
+VALID_SPEC = """
+version: 1
+normalization:
+  separator: "-"
+parameters:
+  utm_source: {store: git, required: true, enum_type: open, on_unknown: emit_and_nudge, values: [reddit]}
+  utm_medium: {store: git, required: true, enum_type: closed, on_unknown: refuse, values: [social]}
+  utm_campaign: {store: sheet, required: true, template_regex: "^[0-9]{4}-q[1-4]_[a-z0-9]+(-[a-z0-9]+)*$"}
+  utm_content: {store: git, required: false, enum_type: free, on_unknown: normalize, shape_regex: "^[a-z0-9]+(-[a-z0-9]+)*$"}
+  utm_term: {store: git, required: false, enum_type: free, on_unknown: normalize, shape_regex: "^[a-z0-9]+(-[a-z0-9]+)*$"}
+"""
+
+
+def test_get_spec_parses_fetched_yaml():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://example.test/spec/utm-spec.yaml"
+        return httpx.Response(200, text=VALID_SPEC)
+
+    spec = make_source(handler).get_spec()
+    assert spec.version == 1
+    assert spec.parameter("utm_medium").values == ("social",)
+
+
+def test_get_spec_wraps_parse_error_as_specsourceerror():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="- not a mapping\n")
+
+    with pytest.raises(SpecSourceError):
+        make_source(handler).get_spec()
+
+
+def test_get_spec_fails_loud_on_http_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text="not found")
+
+    with pytest.raises(SpecSourceError):
+        make_source(handler).get_spec()
+
+
 def test_failure_never_returns_a_default_body():
     """A failed read must raise, never silently yield built-in/stale content."""
 

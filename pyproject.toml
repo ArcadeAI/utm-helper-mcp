@@ -2,10 +2,11 @@
 name = "utm_server"
 version = "0.1.0"
 description = "UTM Helper MCP server — consistent UTM-tagged links from an authoritative Git spec."
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "arcade-mcp-server>=1.17.0,<2.0.0",
     "httpx>=0.28.0,<1.0.0",
+    "pyyaml>=6.0,<7.0",
 ]
 
 [project.optional-dependencies]
@@ -14,6 +15,7 @@ dev = [
     "pytest>=7.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    "types-PyYAML>=6.0,<7.0",
 ]
 
 # Tell Arcade.dev that this package ships Arcade tools.
@@ -29,10 +31,10 @@ packages = ["src/utm_server"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_unused_configs = true
 disallow_untyped_defs = false
 

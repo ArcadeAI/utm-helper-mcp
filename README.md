@@ -8,19 +8,43 @@ This repo is both the **spec source of truth** ([`GUIDE.md`](./GUIDE.md),
 [`utm-spec.yaml`](./utm-spec.yaml)) and the **server** that serves it. See the
 [PRD](https://github.com/ArcadeAI/utm-helper-mcp/issues/1) for the full design.
 
-> **Status:** first tracer bullet. The only tool so far is `get_guidelines()`
-> (fetch the guide from the configured Git source). `build_url`,
-> `validate_and_normalize`, and the campaign tools land in later issues.
+> **Status:** in progress. `get_guidelines()` and `validate_url()` are
+> implemented. `build_url` and the campaign-registry tools land in later issues.
 
 ## Tools
 
 | Tool | Description |
 |---|---|
 | `get_guidelines()` | Returns the human-readable UTM guide (`GUIDE.md`) fetched from the configured Git spec source. |
+| `validate_url(url)` | The mandatory last hop: normalizes a URL's UTM parameters against the spec and validates them, returning the normalized URL, a changelog of fixups, and any soft nudges. |
+
+### `validate_url` — normalize + validate (the last hop)
+
+`validate_url` reads the structured spec (`utm-spec.yaml`) from the configured
+Git source and applies it **end-to-end** to a URL:
+
+1. **Normalize** every UTM value deterministically (lowercase, hyphen-separated,
+   no spaces; the structural `_` in `utm_campaign` is preserved). Each change is
+   reported in a `changelog`.
+2. **Validate**, with per-field behavior asymmetry straight from the spec:
+
+   | Param | On unknown value |
+   |---|---|
+   | `utm_source` (open enum) | Emits the normalized link **+ a nudge** to add the source to the spec repo. |
+   | `utm_medium` (closed enum) | **Hard refuse** (raises): shows the valid set + closest suggestion; **no link is emitted**. |
+   | `utm_campaign` (sheet) | Must match the `YYYY-qN_kebab-slug` template; a malformed name **hard-errors**. Registry membership is checked once the campaign registry lands. |
+   | `utm_content` / `utm_term` (free) | Always shape-normalized; never refused. |
+
+A missing **required** parameter (`utm_source`, `utm_medium`, `utm_campaign`)
+also hard-refuses. Non-UTM query params are passed through untouched.
+
+On success it returns `{ "url", "changelog": [{param, from, to}, ...], "nudges": [...] }`.
+Hard refusals and spec-source failures surface as loud tool errors — it never
+falls back to a built-in spec.
 
 ## Setup (admin)
 
-Requires Python ≥ 3.10 and [`uv`](https://docs.astral.sh/uv/).
+Requires Python ≥ 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync --extra dev        # install runtime + dev deps into .venv
