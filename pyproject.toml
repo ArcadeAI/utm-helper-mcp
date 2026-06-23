@@ -1,0 +1,40 @@
+[project]
+name = "utm_server"
+version = "0.1.0"
+description = "UTM Helper MCP server — consistent UTM-tagged links from an authoritative Git spec."
+requires-python = ">=3.10"
+dependencies = [
+    "arcade-mcp-server>=1.17.0,<2.0.0",
+    "httpx>=0.28.0,<1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "arcade-mcp[all]>=1.15.0,<2.0.0",
+    "pytest>=7.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+]
+
+# Tell Arcade.dev that this package ships Arcade tools.
+[project.entry-points.arcade_toolkits]
+utm_server = "utm_server"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/utm_server"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
