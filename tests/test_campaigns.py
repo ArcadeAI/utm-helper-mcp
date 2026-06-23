@@ -149,6 +149,15 @@ def test_empty_sheet_fails_loud():
     assert "admin" in str(excinfo.value)
 
 
+def test_non_object_json_body_fails_loud():
+    # Valid JSON, but a bare list rather than the expected object.
+    with pytest.raises(CampaignSheetError) as excinfo:
+        make_registry(lambda r: httpx.Response(200, json=[])).list_campaigns()
+    message = str(excinfo.value)
+    assert "unexpected response shape" in message
+    assert "admin" in message
+
+
 def test_http_error_fails_loud():
     def handler(request):
         return httpx.Response(403, text="forbidden")

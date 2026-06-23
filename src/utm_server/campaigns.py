@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from dataclasses import dataclass
 from typing import Callable
 from urllib.parse import quote
@@ -100,10 +101,16 @@ def build_service_account_token_provider(sa_json: str) -> TokenProvider:
             "key) — contact the admin."
         ) from exc
 
+    # The registry (and thus this provider/creds) is cached process-wide, so the
+    # MCP runtime may invoke it from multiple threads. Guard the check-then-
+    # refresh so two concurrent first-calls don't race on creds.refresh().
+    lock = threading.Lock()
+
     def provider() -> str:
-        if not creds.valid:
-            creds.refresh(_NoNetworkRequest())
-        return creds.token
+        with lock:
+            if not creds.valid:
+                creds.refresh(_NoNetworkRequest())
+            return creds.token
 
     return provider
 
@@ -166,12 +173,19 @@ class CampaignRegistry:
         return _parse_campaigns(payload)
 
 
-def _parse_campaigns(payload: dict) -> list[Campaign]:
+def _parse_campaigns(payload: object) -> list[Campaign]:
     """Validate the Sheets API payload against the schema and build campaigns.
 
     Fails loud (with the offending sheet row number) on any header/column
     mismatch rather than guessing what a column means.
     """
+    if not isinstance(payload, dict):
+        # Valid JSON but not the expected object (e.g. a bare list/string).
+        raise CampaignSheetError(
+            "The campaign Sheet returned an unexpected response shape — "
+            "contact the admin."
+        )
+
     rows = payload.get("values") or []
     if not rows:
         raise CampaignSheetError(
