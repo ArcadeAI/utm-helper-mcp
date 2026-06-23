@@ -44,7 +44,7 @@ falls back to a built-in spec.
 
 ## Setup (admin)
 
-Requires Python ≥ 3.10 and [`uv`](https://docs.astral.sh/uv/).
+Requires Python ≥ 3.12 and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync --extra dev        # install runtime + dev deps into .venv

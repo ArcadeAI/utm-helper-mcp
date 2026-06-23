@@ -2,7 +2,7 @@
 name = "utm_server"
 version = "0.1.0"
 description = "UTM Helper MCP server — consistent UTM-tagged links from an authoritative Git spec."
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "arcade-mcp-server>=1.17.0,<2.0.0",
     "httpx>=0.28.0,<1.0.0",
@@ -31,13 +31,8 @@ packages = ["src/utm_server"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
-# python_version is 3.12 here only so mypy's *parser* accepts the PEP 695 `type`
-# statements in the numpy stubs that arcade-mcp pulls in transitively (a 3.10
-# parser rejects them, and a parse error in a reachable stub can't be suppressed
-# per-module). The runtime floor stays 3.10 — enforced by `requires-python` and
-# ruff's `target-version = "py310"`.
 [tool.mypy]
 python_version = "3.12"
 warn_unused_configs = true
