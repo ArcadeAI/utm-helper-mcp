@@ -26,20 +26,29 @@ Requires Python ≥ 3.10 and [`uv`](https://docs.astral.sh/uv/).
 uv sync --extra dev        # install runtime + dev deps into .venv
 ```
 
-### Configuration — pointers only
+### Configuration — pointers only, via an Arcade secret
 
 Configuration only says **where to look** for the spec; it never encodes
 behavior. All behavior (enums, shape rules, casing) lives in the spec repo and
 changes by reviewed PR.
 
-| Env var | Meaning |
+The single pointer is provided as the Arcade **tool secret**
+`UTM_SPEC_SOURCE_URL` — it is **not** hard-coded in the server. The tool reads it
+from its injected `Context` at call time (`context.get_secret(...)`).
+
+| Secret | Meaning |
 |---|---|
 | `UTM_SPEC_SOURCE_URL` | Raw base URL of the Git spec source. The server appends file names (e.g. `GUIDE.md`), so it must serve **raw** file contents. Works with GitHub raw, GitLab raw, or any self-hosted mirror. A trailing `/` is added if omitted. |
 
-Copy [`.env.example`](./.env.example) to `.env` to set it locally.
+Set it where it belongs for your environment:
 
-**First run / no config:** if `UTM_SPEC_SOURCE_URL` is unset, the server uses
-the opinionated **default seed** shipped in this repo
+- **Production:** configure it on the [Arcade dashboard](https://api.arcade.dev/dashboard),
+  or with `arcade secret set UTM_SPEC_SOURCE_URL <url>`.
+- **Local dev:** put it in `.env` (copy [`.env.example`](./.env.example)) — Arcade
+  discovers `.env` and injects the secret into the tool `Context`.
+
+**First run / no config:** if the secret is unset, the tool uses the opinionated
+**default seed** shipped in this repo
 (`https://raw.githubusercontent.com/ArcadeAI/utm-helper-mcp/main/`) and **logs a
 warning**. This is the *only* case where a default is used — see Failure
 behavior below.

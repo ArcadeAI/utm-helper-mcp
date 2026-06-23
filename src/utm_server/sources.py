@@ -17,7 +17,7 @@ from typing import Callable
 
 import httpx
 
-from .config import Config, file_url, load_config
+from .config import Config, file_url
 
 logger = logging.getLogger(__name__)
 
@@ -109,16 +109,18 @@ class SpecSource:
         return self.get_text(GUIDE_FILENAME)
 
 
-_default_source: SpecSource | None = None
+_sources: dict[str, SpecSource] = {}
 
 
-def get_default_source() -> SpecSource:
-    """Return a process-wide :class:`SpecSource` built from the environment.
+def get_source(config: Config) -> SpecSource:
+    """Return a process-wide :class:`SpecSource` for ``config``'s source URL.
 
-    Lazily initialized so the brief cache persists across tool calls within a
-    running server.
+    Cached per source URL so the brief spec cache persists across tool calls
+    within a running server, even though the URL arrives per-call via the tool
+    secret (its value is stable across calls).
     """
-    global _default_source
-    if _default_source is None:
-        _default_source = SpecSource(load_config())
-    return _default_source
+    source = _sources.get(config.spec_source_url)
+    if source is None:
+        source = SpecSource(config)
+        _sources[config.spec_source_url] = source
+    return source

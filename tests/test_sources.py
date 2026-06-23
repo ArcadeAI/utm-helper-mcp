@@ -3,8 +3,8 @@
 import httpx
 import pytest
 
-from utm_server.config import Config
-from utm_server.sources import GUIDE_FILENAME, SpecSource, SpecSourceError
+from utm_server.config import Config, config_from_url
+from utm_server.sources import GUIDE_FILENAME, SpecSource, SpecSourceError, get_source
 
 
 class FakeClock:
@@ -93,6 +93,15 @@ def test_transport_error_raises_loud_and_specific():
     message = str(excinfo.value)
     assert "unreachable" in message or "reach" in message
     assert "admin" in message
+
+
+def test_get_source_is_cached_per_url():
+    config = config_from_url("https://cached.test/spec/")
+    first = get_source(config)
+    second = get_source(config_from_url("https://cached.test/spec/"))
+    assert first is second  # same URL -> same cached SpecSource (shared TTL cache)
+    other = get_source(config_from_url("https://other.test/spec/"))
+    assert other is not first
 
 
 def test_failure_never_returns_a_default_body():

@@ -2,39 +2,36 @@
 
 from utm_server.config import (
     DEFAULT_SPEC_SOURCE_URL,
-    SPEC_SOURCE_URL_ENV,
+    config_from_url,
     file_url,
-    load_config,
 )
 
 
-def test_unset_env_uses_default_seed():
-    config = load_config(env={})
+def test_none_url_uses_default_seed():
+    config = config_from_url(None)
     assert config.is_default_source is True
     assert config.spec_source_url == DEFAULT_SPEC_SOURCE_URL  # already ends in "/"
 
 
-def test_blank_env_uses_default_seed():
-    config = load_config(env={SPEC_SOURCE_URL_ENV: "   "})
+def test_blank_url_uses_default_seed():
+    config = config_from_url("   ")
     assert config.is_default_source is True
     assert config.spec_source_url == DEFAULT_SPEC_SOURCE_URL
 
 
-def test_env_override_wins():
-    config = load_config(
-        env={SPEC_SOURCE_URL_ENV: "https://example.test/spec/"}
-    )
+def test_configured_url_wins():
+    config = config_from_url("https://example.test/spec/")
     assert config.is_default_source is False
     assert config.spec_source_url == "https://example.test/spec/"
 
 
 def test_trailing_slash_is_normalized():
-    config = load_config(env={SPEC_SOURCE_URL_ENV: "https://example.test/spec"})
+    config = config_from_url("https://example.test/spec")
     assert config.spec_source_url == "https://example.test/spec/"
 
 
 def test_file_url_joins_base_and_filename():
-    config = load_config(env={SPEC_SOURCE_URL_ENV: "https://example.test/spec"})
+    config = config_from_url("https://example.test/spec")
     assert file_url(config, "GUIDE.md") == "https://example.test/spec/GUIDE.md"
     # A leading slash on the filename does not escape the base path.
     assert file_url(config, "/GUIDE.md") == "https://example.test/spec/GUIDE.md"

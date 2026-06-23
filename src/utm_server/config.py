@@ -3,17 +3,20 @@
 Configuration says *where to look* for the authoritative spec — never how the
 server behaves. All behavior (enums, shape rules, casing) lives in the spec repo
 (``GUIDE.md`` / ``utm-spec.yaml``) and changes only by reviewed PR. The single
-knob here is the raw base URL of that Git spec source.
+knob is the raw base URL of that Git spec source.
+
+That URL is supplied as an **Arcade tool secret** (configured on the Arcade
+dashboard, or via ``.env`` / env var for local dev) and injected into the tool
+``Context`` at call time — it is never hard-coded in the server. See
+:mod:`utm_server.server` for how the secret is read.
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
-from typing import Mapping
 
-#: Environment variable holding the raw base URL of the Git spec source.
-SPEC_SOURCE_URL_ENV = "UTM_SPEC_SOURCE_URL"
+#: Name of the Arcade secret holding the raw base URL of the Git spec source.
+SPEC_SOURCE_SECRET = "UTM_SPEC_SOURCE_URL"
 
 #: The announced first-run / no-config default: the opinionated seed spec that
 #: ships in this repo. Using it logs a warning (see ``sources``) so a
@@ -30,7 +33,7 @@ class Config:
     Attributes:
         spec_source_url: Raw base URL of the Git spec source, always ending in
             ``/``. File names are appended to it (see :func:`file_url`).
-        is_default_source: ``True`` when no source was configured and the
+        is_default_source: ``True`` when no source secret was configured and the
             shipped default seed is in use (the announced first-run case).
     """
 
@@ -38,16 +41,16 @@ class Config:
     is_default_source: bool
 
 
-def load_config(env: Mapping[str, str] = os.environ) -> Config:
-    """Build :class:`Config` from the environment.
+def config_from_url(url: str | None) -> Config:
+    """Build :class:`Config` from a spec-source URL (e.g. an Arcade secret).
 
-    An unset or blank ``UTM_SPEC_SOURCE_URL`` falls back to the announced
-    default seed and flips ``is_default_source``. The base URL is normalized to
-    end in a single ``/`` so file names join predictably.
+    A missing or blank URL falls back to the announced default seed and flips
+    ``is_default_source``. The base URL is normalized to end in a single ``/``
+    so file names join predictably.
     """
-    raw = env.get(SPEC_SOURCE_URL_ENV, "").strip()
-    if raw:
-        return Config(spec_source_url=_with_trailing_slash(raw), is_default_source=False)
+    cleaned = (url or "").strip()
+    if cleaned:
+        return Config(spec_source_url=_with_trailing_slash(cleaned), is_default_source=False)
     return Config(
         spec_source_url=_with_trailing_slash(DEFAULT_SPEC_SOURCE_URL),
         is_default_source=True,
